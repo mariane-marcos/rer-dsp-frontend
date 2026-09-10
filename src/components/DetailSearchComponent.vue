@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
 import type { DetailByIdentifierDTO } from '@/types/totalizer'
 import {
   buildDetailByIdentifierConfig,
@@ -36,6 +38,7 @@ const propertyRows = computed(() => getPropertyFieldRows(config))
 const otherIds = computed(() =>
   (props.detail.otherIds ?? []).filter((id) => id && id !== props.detail.id),
 )
+const expanded = ref(true)
 
 function readFieldValue(field: DetailFieldConfig): string {
   const raw = readDetailFieldValue(props.detail, field)
@@ -73,9 +76,26 @@ function onDownloadFeatures(): void {
     class="details-panel dsp-aoi-details-panel"
     :aria-label="config.sectionTitle"
   >
-    <h2 class="section-title">{{ config.sectionTitle }}</h2>
+    <button
+      type="button"
+      class="section-toggle"
+      :aria-expanded="expanded"
+      :aria-controls="`detail-panel-content-${detail.id ?? 'aoi'}`"
+      @click="expanded = !expanded"
+    >
+      <span class="section-title">{{ config.sectionTitle }}</span>
+      <FontAwesomeIcon
+        :icon="expanded ? faChevronUp : faChevronDown"
+        class="section-toggle__icon"
+        aria-hidden="true"
+      />
+    </button>
 
-    <div class="details-card">
+    <div
+      v-show="expanded"
+      :id="`detail-panel-content-${detail.id ?? 'aoi'}`"
+      class="details-card"
+    >
       <div
         v-if="headerFields.length"
         class="header-detail"
@@ -148,22 +168,49 @@ function onDownloadFeatures(): void {
 
 <style scoped>
 .details-panel {
-  margin-bottom: 24px;
+  margin: 20px 0 24px;
+  border: 1px solid #70707045;
+  border-radius: 8px;
+  padding: 15px;
+  background: #fff;
+}
+
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.section-toggle:focus-visible {
+  outline: 2px solid #42916e;
+  outline-offset: 2px;
 }
 
 .section-title {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 20px;
   color: #42916e;
   font-weight: 600;
   text-transform: uppercase;
 }
 
+.section-toggle__icon {
+  color: #42916e;
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
 .details-card {
-  border: 1px solid #70707045;
-  border-radius: 8px;
-  padding: 20px 24px 24px;
-  background: #fff;
+  margin-top: 12px;
+  padding: 4px 15px 15px;
 }
 
 .header-detail {

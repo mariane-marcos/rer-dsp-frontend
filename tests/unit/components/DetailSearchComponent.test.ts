@@ -6,6 +6,13 @@ import { FALLBACK_INSTALLATION_CONFIG } from '@/config/installationConfigFallbac
 import { peekInstallationConfig, resetInstallationConfigCache } from '@/services/configService'
 import type { InstallationConfig } from '@/types/installationConfig'
 
+vi.mock('@fortawesome/vue-fontawesome', () => ({
+  FontAwesomeIcon: {
+    name: 'FontAwesomeIcon',
+    template: '<i />',
+  },
+}))
+
 vi.mock('@/services/configService', async () => {
   const actual = await vi.importActual<typeof import('@/services/configService')>(
     '@/services/configService',
@@ -80,6 +87,29 @@ describe('DetailSearchComponent', () => {
     expect(wrapper.text()).toContain('Brasília')
     expect(wrapper.text()).toContain('Distrito Federal')
     expect(wrapper.text()).toContain('120.50 ha')
+    expect(wrapper.find('.details-card').isVisible()).toBe(true)
+  })
+
+  it('should collapse and expand detail content when header is clicked', async () => {
+    const wrapper = mount(DetailSearchComponent, {
+      props: { detail },
+    })
+
+    const toggle = wrapper.get('.section-toggle')
+    const content = wrapper.get('.details-card')
+
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(content.isVisible()).toBe(true)
+
+    await toggle.trigger('click')
+
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(content.attributes('style') ?? '').toContain('display: none')
+
+    await toggle.trigger('click')
+
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(content.isVisible()).toBe(true)
   })
 
   it('should use installation labels for identifier and hierarchy', () => {

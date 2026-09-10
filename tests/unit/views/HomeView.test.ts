@@ -331,6 +331,7 @@ describe('HomeView', () => {
     const wrapper = await mountHome()
 
     const map = wrapper.findComponent({ name: 'DspMapComponent' })
+    const searchFilter = wrapper.findComponent(SearchFilterComponent)
     await map.vm.$emit('aoi-click', { lat: -15.75, lng: -47.85 })
     await flushPromises()
 
@@ -357,6 +358,9 @@ describe('HomeView', () => {
     expect(wrapper.text()).toContain('DF-123')
     expect(wrapper.text()).toContain('Outros próximos')
     expect(wrapper.text()).toContain('DF-456')
+    expect(searchFilter.vm.form.identifier).toBe('DF-123')
+    expect(searchFilter.vm.form.level2).toEqual(['DF'])
+    expect(searchFilter.vm.form.level3).toEqual(['5300108'])
 
     const otherBtn = wrapper
       .findAll('button')
@@ -372,6 +376,45 @@ describe('HomeView', () => {
     )
     expect(showSelectedAoiGeometry).toHaveBeenCalled()
     expect(wrapper.text()).toContain('DF-456')
+    expect(searchFilter.vm.form.identifier).toBe('DF-456')
+  })
+
+  it('should show clear button and reset state after opening map details', async () => {
+    vi.mocked(getDetailsByCoordinates).mockResolvedValue({
+      id: 'DF-123',
+      registrationDate: '2020-01-10',
+      territory: {
+        level2: { id: 'DF', name: 'Distrito Federal' },
+        level3: { id: '5300108', name: 'Brasília' },
+      },
+      latitude: '-15.75',
+      longitude: '-47.85',
+      area: 120.5,
+      alterationDate: '2024-06-15',
+    })
+
+    const wrapper = await mountHome()
+    const searchFilter = wrapper.findComponent(SearchFilterComponent)
+    const map = wrapper.findComponent({ name: 'DspMapComponent' })
+
+    await map.vm.$emit('aoi-click', { lat: -15.75, lng: -47.85 })
+    await flushPromises()
+    await map.vm.$emit('open-details')
+    await flushPromises()
+
+    const clearButton = searchFilter
+      .findAll('button')
+      .find((button) => button.text().includes('Clear'))
+    expect(clearButton).toBeTruthy()
+
+    await clearButton!.trigger('click')
+    await flushPromises()
+
+    expect(clearSelection).toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('Search details')
+    expect(wrapper.text()).toContain('Registered properties')
+    expect(searchFilter.vm.form.identifier).toBe('')
+    expect(searchFilter.vm.form.level2).toEqual([])
   })
 
   it('should render banner and load initial KPIs', async () => {

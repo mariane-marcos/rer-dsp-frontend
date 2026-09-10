@@ -14,6 +14,10 @@ const {
   setZoom,
   panTo,
   setMaxBounds,
+  fitBounds,
+  setView,
+  geoJsonLayerRef,
+  loadMapLayersMock,
 } = vi.hoisted(() => ({
   scrollToElementMock: vi.fn(),
   mapClickHandlers: [] as Array<(event: { latlng: { lat: number; lng: number } }) => void>,
@@ -25,6 +29,19 @@ const {
   }),
   panTo: vi.fn(),
   setMaxBounds: vi.fn(),
+  fitBounds: vi.fn(),
+  setView: vi.fn(),
+  geoJsonLayerRef: {
+    current: null as {
+      addTo: ReturnType<typeof vi.fn>
+      getBounds: ReturnType<typeof vi.fn>
+      remove: ReturnType<typeof vi.fn>
+    } | null,
+  },
+  loadMapLayersMock: vi.fn().mockResolvedValue({
+    mapLayers: [],
+    customLayers: [],
+  }),
 }))
 
 vi.mock('@/utils/scrollToElement', () => ({
@@ -32,10 +49,7 @@ vi.mock('@/utils/scrollToElement', () => ({
 }))
 
 vi.mock('@/services/mapService', () => ({
-  loadMapLayers: vi.fn().mockResolvedValue({
-    mapLayers: [],
-    customLayers: [],
-  }),
+  loadMapLayers: loadMapLayersMock,
 }))
 
 vi.mock('@rural-environmental-registry/map_component', async () => {
@@ -59,17 +73,22 @@ vi.mock('@rural-environmental-registry/map_component', async () => {
             }
           }),
           off: vi.fn(),
-          fitBounds: vi.fn(),
-          setView: vi.fn(),
+          fitBounds,
+          setView,
         }
 
         expose({
           map,
           leaflet: {
-            geoJSON: vi.fn(() => ({
-              addTo: vi.fn().mockReturnThis(),
-              getBounds: vi.fn(() => ({ isValid: () => false })),
-            })),
+            geoJSON: vi.fn(() => {
+              const layer = {
+                addTo: vi.fn().mockReturnThis(),
+                getBounds: vi.fn(() => ({ isValid: () => true })),
+                remove: vi.fn(),
+              }
+              geoJsonLayerRef.current = layer
+              return layer
+            }),
             marker: vi.fn(() => {
               const markerInstance = {
                 bindTooltip: vi.fn((content: HTMLElement) => {
@@ -78,6 +97,7 @@ vi.mock('@rural-environmental-registry/map_component', async () => {
                 }),
                 addTo: vi.fn().mockReturnThis(),
                 openTooltip: vi.fn(),
+                remove: vi.fn(),
               }
               return markerInstance
             }),
@@ -109,7 +129,12 @@ describe('DspMapComponent', () => {
     mapClickHandlers.length = 0
     currentZoomRef.value = DSP_ZOOM_TO_ALLOW_CLICK
     lastTooltipContentRef.current = null
+    geoJsonLayerRef.current = null
     exitFullscreen.mockClear()
+    loadMapLayersMock.mockResolvedValue({
+      mapLayers: [],
+      customLayers: [],
+    })
   })
 
   afterEach(() => {
@@ -234,5 +259,136 @@ describe('DspMapComponent', () => {
 
   it('should align map height constant with consulta-publica (70vh)', () => {
     expect(DSP_MAP_HEIGHT_VH).toBe(70)
+  })
+
+  it('should show load error when map layers fail to load', async () => {
+    loadMapLayersMock.mockRejectedValueOnce(new Error('map unavailable'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const wrapper = await mountMap()
+
+    expect(wrapper.find('.dsp-map__error').text()).toContain('Could not load map layers')
+    expect(wrapper.findComponent({ name: 'MapaDPG' }).exists()).toBe(false)
+
+    consoleError.mockRestore()
+  })
+
+  it('should emit ready when map instance becomes available', async () => {
+    const wrapper = await mountMap()
+
+    expect(wrapper.emitted('ready')).toHaveLength(1)
+  })
+
+  it('should render AOI highlight geometry and fit bounds', async () => {
+    const wrapper = await mountMap()
+    const mapComponent = wrapper.vm as {
+      showSelectedAoiGeometry: (
+        geojson: GeoJSON.GeoJsonObject,
+        style: { color: string; fillColor: string },
+      ) => void
+    }
+
+    const geojson: GeoJSON.Feature = {
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [-47.9, -15.8],
+            [-47.8, -15.8],
+            [-47.8, -15.7],
+            [-47.9, -15.8],
+          ],
+        ],
+      },
+      properties: {},
+    }
+
+    mapComponent.showSelectedAoiGeometry(geojson, {
+      color: '#1351b4',
+      fillColor: '#1351b4',
+    })
+
+    expect(geoJsonLayerRef.current?.addTo).toHaveBeenCalled()
+    expect(fitBounds).toHaveBeenCalled()
+  })
+
+  it('should expose fitBounds and setView helpers', async () => {
+    const wrapper = await mountMap()
+    const mapComponent = wrapper.vm as {
+      fitBounds: (bounds: [[number, number], [number, number]]) => void
+      setView: (center: [number, number], zoom: number) => void
+    }
+
+    mapComponent.fitBounds([
+      [-16, -48],
+      [-15, -47],
+    ])
+    mapComponent.setView([-15.75, -47.85], 10)
+
+    expect(fitBounds).toHaveBeenCalledWith(
+      [
+        [-16, -48],
+        [-15, -47],
+      ],
+      { padding: [40, 40], maxZoom: 16 },
+    )
+    expect(setView).toHaveBeenCalledWith([-15.75, -47.85], 10)
+  })
+
+  it('should clear highlight and detail marker on clearSelection', async () => {
+    const wrapper = await mountMap()
+    const mapComponent = wrapper.vm as {
+      showDetailButton: (lat: number, lng: number) => void
+      showSelectedAoiGeometry: (
+        geojson: GeoJSON.GeoJsonObject,
+        style: { color: string; fillColor: string },
+      ) => void
+      clearSelection: () => void
+    }
+
+    mapComponent.showDetailButton(-15.75, -47.85)
+    await nextTick()
+
+    mapComponent.showSelectedAoiGeometry(
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [-47.85, -15.75] },
+        properties: {},
+      },
+      { color: '#1351b4', fillColor: '#1351b4' },
+    )
+
+    const highlightLayer = geoJsonLayerRef.current
+    expect(highlightLayer).toBeTruthy()
+
+    mapComponent.clearSelection()
+
+    expect(highlightLayer?.remove).toHaveBeenCalled()
+    expect(lastTooltipContentRef.current).toBeTruthy()
+  })
+
+  it('should unbind map click and clear selection on unmount', async () => {
+    const wrapper = await mountMap()
+    const mapComponent = wrapper.vm as {
+      showSelectedAoiGeometry: (
+        geojson: GeoJSON.GeoJsonObject,
+        style: { color: string; fillColor: string },
+      ) => void
+    }
+
+    mapComponent.showSelectedAoiGeometry(
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [-47.85, -15.75] },
+        properties: {},
+      },
+      { color: '#1351b4', fillColor: '#1351b4' },
+    )
+
+    const highlightLayer = geoJsonLayerRef.current
+    wrapper.unmount()
+
+    expect(highlightLayer?.remove).toHaveBeenCalled()
   })
 })

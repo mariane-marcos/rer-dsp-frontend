@@ -79,6 +79,9 @@ describe('geoserverAoiService', () => {
     expect(wmsBaseUrlToWfs('http://localhost:22668/geoserver/dsp/wms')).toBe(
       'http://localhost:22668/geoserver/dsp/wfs',
     )
+    expect(wmsBaseUrlToWfs('http://localhost:22668/geoserver/dsp/wms/')).toBe(
+      'http://localhost:22668/geoserver/dsp/wfs',
+    )
   })
 
   it('should build GetFeature URL with CQL filter for AOI', () => {
@@ -91,7 +94,7 @@ describe('geoserverAoiService', () => {
 
   it('should build GetFeature URL for territory-level-3', () => {
     const url = buildFeatureWfsUrl(
-      'http://localhost:22668/geoserver/dsp/wfs',
+      'http://localhost:22668/geoserver/dsp/wfs/',
       'dsp:territory-level-3',
       '5300108',
     )
@@ -102,6 +105,70 @@ describe('geoserverAoiService', () => {
   it('should find layers by key', () => {
     expect(findLayerByKey(sampleMapLayers, 'dt_l3')?.layers).toBe('dsp:territory-level-3')
     expect(findAoiLayer(sampleMapLayers)?.key).toBe('ird_aoi')
+  })
+
+  it('should return null when map layers are missing or key is not found', () => {
+    expect(findLayerByKey(null, 'dt_l3')).toBeNull()
+    expect(findLayerByKey(sampleMapLayers, 'missing_key')).toBeNull()
+    expect(findAoiLayer(null)).toBeNull()
+  })
+
+  it('should find AOI layer by type name when key differs', () => {
+    const layersWithoutAoiKey = {
+      mapLayers: [],
+      customLayers: [
+        {
+          name: 'Declared areas of interest',
+          key: 'ird',
+          toggle: { active: 'On', inactive: 'Off' },
+          layers: [
+            {
+              baseUrl: 'http://localhost:22668/geoserver/dsp/wms',
+              layers: 'prefix:area-of-interest-layer',
+              format: 'image/png',
+              transparent: true,
+              name: 'Area of interest',
+              activeDefault: true,
+              active: true,
+              key: 'custom_aoi_key',
+              toggle: { active: 'On', inactive: 'Off' },
+              style: { color: '#cccc00', fillColor: '#ffff00' },
+            },
+          ],
+        },
+      ],
+    } as MapLayers
+
+    expect(findAoiLayer(layersWithoutAoiKey)?.key).toBe('custom_aoi_key')
+  })
+
+  it('should return null when AOI layer cannot be resolved', () => {
+    const layersWithoutAoi = {
+      mapLayers: [],
+      customLayers: [
+        {
+          name: 'Other',
+          key: 'other',
+          toggle: { active: 'On', inactive: 'Off' },
+          layers: [
+            {
+              baseUrl: 'http://localhost:22668/geoserver/dsp/wms',
+              layers: 'dsp:other-layer',
+              format: 'image/png',
+              transparent: true,
+              name: 'Other layer',
+              activeDefault: true,
+              active: true,
+              key: 'other_layer',
+              toggle: { active: 'On', inactive: 'Off' },
+              style: { color: '#000', fillColor: 'transparent' },
+            },
+          ],
+        },
+      ],
+    } as MapLayers
+
+    expect(findAoiLayer(layersWithoutAoi)).toBeNull()
   })
 
   it('should fetch AOI geometry by id', async () => {
@@ -161,5 +228,24 @@ describe('geoserverAoiService', () => {
     await expect(
       fetchAoiGeometryById('DF-123', 'http://localhost:22668/geoserver/dsp/wfs'),
     ).resolves.toBeNull()
+  })
+
+  it('should throw when WFS response is not ok', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        url: 'http://localhost:22668/geoserver/dsp/wfs',
+      }),
+    )
+
+    await expect(
+      fetchFeatureGeometryById({
+        typeName: 'dsp:area-of-interest',
+        id: 'DF-123',
+        wfsBaseUrl: 'http://localhost:22668/geoserver/dsp/wfs',
+      }),
+    ).rejects.toThrow('HTTP 502')
   })
 })

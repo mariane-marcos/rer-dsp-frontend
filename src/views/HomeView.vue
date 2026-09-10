@@ -156,6 +156,20 @@ function applyDetail(detail: DetailByIdentifierDTO, candidates?: string[]): void
   kpis.value = []
 }
 
+async function syncSearchFilterWithDetail(detail: DetailByIdentifierDTO): Promise<void> {
+  const id = detail.id?.trim()
+  if (id) {
+    searchFilterRef.value?.applyIdentifierSelection(id)
+  }
+
+  await searchFilterRef.value?.applyTerritorySelection({
+    level2Id: detail.territory?.level2?.id,
+    level3Id: detail.territory?.level3?.id,
+    level2Label: detail.territory?.level2?.name,
+    level3Label: detail.territory?.level3?.name,
+  })
+}
+
 function clearDetailAndMapSelection(): void {
   detailByIdentifier.value = null
   pendingDetail.value = null
@@ -325,12 +339,7 @@ const onSearch = async (payload: SearchFilterPayload) => {
         return
       }
       applyDetail(detail, [detail.id ?? identifier])
-      await searchFilterRef.value?.applyTerritorySelection({
-        level2Id: detail.territory?.level2?.id,
-        level3Id: detail.territory?.level3?.id,
-        level2Label: detail.territory?.level2?.name,
-        level3Label: detail.territory?.level3?.name,
-      })
+      await syncSearchFilterWithDetail(detail)
       try {
         await highlightAoiOnMap(detail)
       } catch (error) {
@@ -364,6 +373,7 @@ const onSearch = async (payload: SearchFilterPayload) => {
 
 const onClear = () => {
   searchError.value = ''
+  featuresDownloadError.value = ''
   clearDetailAndMapSelection()
   void loadInitialKpis()
   void zoomToInitialTerritory()
@@ -394,11 +404,13 @@ const onAoiClick = async (coords: { lat: number; lng: number }) => {
   }
 }
 
-const onOpenDetails = () => {
+const onOpenDetails = async () => {
   if (!pendingDetail.value) {
     return
   }
+
   detailByIdentifier.value = pendingDetail.value
+  await syncSearchFilterWithDetail(pendingDetail.value)
 }
 
 const onSelectAoi = async (id: string) => {
@@ -423,6 +435,7 @@ const onSelectAoi = async (id: string) => {
     pendingDetail.value = next
     if (detailByIdentifier.value) {
       detailByIdentifier.value = next
+      await syncSearchFilterWithDetail(next)
     }
     await highlightAoiOnMap(next)
   } catch (error) {
@@ -496,6 +509,7 @@ onMounted(async () => {
           ref="searchFilterRef"
           :config="searchConfig"
           :hierarchy-fields="hierarchyFields"
+          :session-active="Boolean(detailByIdentifier || pendingDetail)"
           @search="onSearch"
           @clear="onClear"
         />

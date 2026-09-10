@@ -111,6 +111,25 @@ describe('SearchFilterComponent', () => {
     expect(wrapper.vm.form.level3).toEqual([])
   })
 
+  it('should show clear button when session is active without form values', async () => {
+    const wrapper = mount(SearchFilterComponent, {
+      props: { sessionActive: true },
+    })
+    await flushPromises()
+
+    const clearButton = wrapper.findAll('button').find((button) => button.text().includes('Clear'))
+    expect(clearButton).toBeTruthy()
+  })
+
+  it('should apply identifier selection to form', async () => {
+    const wrapper = mount(SearchFilterComponent)
+    await flushPromises()
+
+    wrapper.vm.applyIdentifierSelection('DF123456789012')
+
+    expect(wrapper.vm.form.identifier).toBe('DF123456789012')
+  })
+
   it('should apply territory selection for level2 and level3', async () => {
     const wrapper = mount(SearchFilterComponent)
     await flushPromises()
