@@ -18,6 +18,7 @@ export interface DownloadsUiConfig {
     topic: string
     services: string
     lastUpdate: string
+    lastFileGenerate: string
   }
   emptyValue: string
   formatLabels: Record<string, string>
@@ -34,6 +35,7 @@ const STATIC_DOWNLOADS_UI = {
     topic: 'Theme',
     services: 'Services',
     lastUpdate: 'Last update',
+    lastFileGenerate: 'Last file generate',
   },
   emptyValue: '—',
   formatLabels: {

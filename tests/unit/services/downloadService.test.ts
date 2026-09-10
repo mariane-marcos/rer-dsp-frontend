@@ -44,6 +44,7 @@ describe('downloadService', () => {
         themeName: 'Theme Alpha',
         formats: [{ format: 'csv', status: 'available' }],
         lastUpdate: '2026-06-01',
+        lastFileGenerated: '2026-06-02T10:00:00Z',
       },
     ])
 
@@ -51,6 +52,7 @@ describe('downloadService', () => {
 
     expect(httpPost).toHaveBeenCalledWith('downloads/search', { level2: 'DF', theme: null })
     expect(items[0].themeCode).toBe('theme_alpha')
+    expect(items[0].lastFileGenerated).toBe('2026-06-02T10:00:00Z')
   })
 
   it('should return empty array when search API responds with null', async () => {

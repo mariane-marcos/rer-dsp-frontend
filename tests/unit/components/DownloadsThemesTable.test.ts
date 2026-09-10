@@ -10,6 +10,7 @@ const items: DownloadItemDTO[] = [
     themeName: 'Theme Alpha',
     formats: [{ format: 'csv', status: 'available' }],
     lastUpdate: '2026-06-01',
+    lastFileGenerated: '2026-06-02T10:00:00Z',
   },
 ]
 
@@ -22,8 +23,10 @@ describe('DownloadsThemesTable', () => {
     expect(wrapper.text()).toContain('Theme')
     expect(wrapper.text()).toContain('Services')
     expect(wrapper.text()).toContain('Last update')
+    expect(wrapper.text()).toContain('Last file generate')
     expect(wrapper.text()).toContain('Theme Alpha')
     expect(wrapper.text()).toContain('01/06/2026')
+    expect(wrapper.text()).toContain('02/06/2026')
     expect(wrapper.text()).toContain('CSV')
     expect(wrapper.text()).not.toContain('GPKG')
 
@@ -56,6 +59,7 @@ describe('DownloadsThemesTable', () => {
         themeName: 'Area of interest',
         formats: [{ format: 'csv', status: 'unavailable' }],
         lastUpdate: null,
+        lastFileGenerated: null,
       },
     ]
 
@@ -68,5 +72,30 @@ describe('DownloadsThemesTable', () => {
       resolveDownloadsUiConfig().unavailableFormatTooltip,
     )
     expect(wrapper.find('button.download-theme').attributes('disabled')).toBeDefined()
+  })
+
+  it('should keep last file generate column visible when the file is missing', () => {
+    const wrapper = mount(DownloadsThemesTable, {
+      props: {
+        items: [
+          {
+            themeCode: 'theme_alpha',
+            themeName: 'Theme Alpha',
+            formats: [{ format: 'csv', status: 'available' }],
+            lastUpdate: '2026-06-01',
+            lastFileGenerated: null,
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.find('thead .col-file-generate').text()).toBe(
+      resolveDownloadsUiConfig().columns.lastFileGenerate,
+    )
+    expect(wrapper.find('thead .col-file-generate').isVisible()).toBe(true)
+    expect(wrapper.find('tbody .col-file-generate').text()).toBe(
+      resolveDownloadsUiConfig().emptyValue,
+    )
+    expect(wrapper.find('tbody .col-file-generate').isVisible()).toBe(true)
   })
 })

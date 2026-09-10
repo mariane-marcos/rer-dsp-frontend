@@ -19,6 +19,7 @@ export interface DownloadItemDTO {
   themeName: string
   formats: DownloadFormatStatusDTO[]
   lastUpdate: string | null
+  lastFileGenerated: string | null
 }
 
 export interface DownloadSearchFilterDTO {
