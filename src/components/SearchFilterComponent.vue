@@ -303,6 +303,14 @@ function applyIdentifierSelection(identifier: string): void {
   form.identifier = identifier.trim()
 }
 
+function clearIdentifierSelection(): void {
+  if (!props.config.identifier) {
+    return
+  }
+
+  form.identifier = ''
+}
+
 async function applyTerritorySelection(selection: TerritorySelection): Promise<void> {
   const level2Id = selection.level2Id?.trim() ?? ''
   const level3Id = selection.level3Id?.trim() ?? ''
@@ -337,6 +345,7 @@ async function applyTerritorySelection(selection: TerritorySelection): Promise<v
 
 defineExpose({
   applyIdentifierSelection,
+  clearIdentifierSelection,
   applyTerritorySelection,
   form,
 })

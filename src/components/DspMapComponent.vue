@@ -26,6 +26,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'aoi-click': [payload: { lat: number; lng: number }]
+  'zoom-insufficient': []
   'open-details': []
   ready: []
 }>()
@@ -64,6 +65,7 @@ function handleMapClick(event: { latlng: { lat: number; lng: number } }): void {
     return
   }
   if (map.getZoom() < DSP_ZOOM_TO_ALLOW_CLICK) {
+    emit('zoom-insufficient')
     return
   }
 

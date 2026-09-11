@@ -141,13 +141,14 @@ describe('DspMapComponent', () => {
     mapClickHandlers.length = 0
   })
 
-  it('should not emit aoi-click when zoom is below the allowed threshold', async () => {
+  it('should emit zoom-insufficient and not emit aoi-click when zoom is below the allowed threshold', async () => {
     currentZoomRef.value = DSP_ZOOM_TO_ALLOW_CLICK - 1
     const wrapper = await mountMap()
 
     expect(mapClickHandlers.length).toBeGreaterThan(0)
     mapClickHandlers[0]({ latlng: { lat: -15.75, lng: -47.85 } })
 
+    expect(wrapper.emitted('zoom-insufficient')).toEqual([[]])
     expect(wrapper.emitted('aoi-click')).toBeUndefined()
   })
 

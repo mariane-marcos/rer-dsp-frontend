@@ -51,6 +51,9 @@ import type { HomeKpisConfig, InstallationConfig } from '@/types/installationCon
 import type { DetailByIdentifierDTO } from '@/types/totalizer'
 import type { TerritoryBoundaryBox } from '@/types/territory'
 import DspMapComponent from '@/components/DspMapComponent.vue'
+import MapInteractionFeedbackComponent, {
+  type MapFeedbackKind,
+} from '@/components/MapInteractionFeedbackComponent.vue'
 import MoreContents from '@/components/MoreContents.vue'
 import { getMoreContentsCards } from '@/config/moreContentsUi'
 import { getAboutConfig } from '@/services/aboutService'
@@ -70,6 +73,8 @@ const AOI_HIGHLIGHT_DARKEN_FILL = 0.6
 
 const searching = ref(false)
 const searchError = ref('')
+const mapFeedback = ref<MapFeedbackKind | null>(null)
+const mapSelectionActive = ref(false)
 const featuresDownloading = ref(false)
 const featuresDownloadError = ref('')
 const detailByIdentifier = ref<DetailByIdentifierDTO | null>(null)
@@ -154,6 +159,7 @@ function applyDetail(detail: DetailByIdentifierDTO, candidates?: string[]): void
   pendingDetail.value = next
   detailByIdentifier.value = next
   kpis.value = []
+  clearMapFeedback()
 }
 
 async function syncSearchFilterWithDetail(detail: DetailByIdentifierDTO): Promise<void> {
@@ -175,6 +181,26 @@ function clearDetailAndMapSelection(): void {
   pendingDetail.value = null
   candidateIds.value = []
   mapRef.value?.clearSelection()
+}
+
+function showMapFeedback(kind: MapFeedbackKind): void {
+  mapFeedback.value = kind
+  detailByIdentifier.value = null
+  pendingDetail.value = null
+  candidateIds.value = []
+  mapRef.value?.clearSelection()
+
+  if (mapSelectionActive.value) {
+    searchFilterRef.value?.clearIdentifierSelection()
+  }
+}
+
+function resetMapSelectionSession(): void {
+  mapSelectionActive.value = false
+}
+
+function clearMapFeedback(): void {
+  mapFeedback.value = null
 }
 
 function resolveHighlightStyleFromLayer(
@@ -327,6 +353,8 @@ async function loadInitialMapOptions(): Promise<void> {
 const onSearch = async (payload: SearchFilterPayload) => {
   searching.value = true
   searchError.value = ''
+  resetMapSelectionSession()
+  clearMapFeedback()
   clearDetailAndMapSelection()
 
   try {
@@ -374,27 +402,34 @@ const onSearch = async (payload: SearchFilterPayload) => {
 const onClear = () => {
   searchError.value = ''
   featuresDownloadError.value = ''
+  resetMapSelectionSession()
+  clearMapFeedback()
   clearDetailAndMapSelection()
   void loadInitialKpis()
   void zoomToInitialTerritory()
 }
 
+const onZoomInsufficient = (): void => {
+  showMapFeedback('zoom-required')
+}
+
 const onAoiClick = async (coords: { lat: number; lng: number }) => {
   searching.value = true
   searchError.value = ''
-  detailByIdentifier.value = null
 
   try {
     const detail = await getDetailsByCoordinates(coords)
     if (!detail) {
-      searchError.value = 'No area of interest found at this location.'
-      mapRef.value?.clearSelection()
-      pendingDetail.value = null
-      candidateIds.value = []
+      showMapFeedback('no-aoi')
       return
     }
 
+    clearMapFeedback()
     pendingDetail.value = buildDetailWithCandidates(detail)
+    detailByIdentifier.value = null
+    mapSelectionActive.value = true
+    kpis.value = []
+    await syncSearchFilterWithDetail(detail)
     await highlightAoiOnMap(pendingDetail.value, coords)
   } catch (error) {
     console.error(error)
@@ -409,6 +444,7 @@ const onOpenDetails = async () => {
     return
   }
 
+  clearMapFeedback()
   detailByIdentifier.value = pendingDetail.value
   await syncSearchFilterWithDetail(pendingDetail.value)
 }
@@ -428,6 +464,7 @@ const onSelectAoi = async (id: string) => {
       return
     }
 
+    clearMapFeedback()
     const next = buildDetailWithCandidates(
       detail,
       candidateIds.value.length ? candidateIds.value : undefined,
@@ -517,7 +554,10 @@ onMounted(async () => {
         <p v-if="searching" class="status-msg"><LoadingDotsComponent /></p>
         <p v-else-if="searchError" class="status-msg status-msg--error">{{ searchError }}</p>
 
-        <section v-else-if="kpis.length && !detailByIdentifier" class="data-cards-section">
+        <section
+          v-else-if="kpis.length && !detailByIdentifier && !pendingDetail && !mapSelectionActive"
+          class="data-cards-section"
+        >
           <div class="data-cards">
             <div v-for="kpi in kpis" :key="kpi.id" class="data-card-container">
               <KpiCardComponent
@@ -539,6 +579,7 @@ onMounted(async () => {
           :options="mapOptions"
           :busy="searching"
           @aoi-click="onAoiClick"
+          @zoom-insufficient="onZoomInsufficient"
           @open-details="onOpenDetails"
         />
         <div v-else class="dsp-map-placeholder" aria-hidden="true" />
@@ -546,6 +587,11 @@ onMounted(async () => {
         <p v-if="featuresDownloadError" class="features-download-error">
           {{ featuresDownloadError }}
         </p>
+
+        <MapInteractionFeedbackComponent
+          v-if="mapFeedback && !searching"
+          :kind="mapFeedback"
+        />
 
         <DetailSearchComponent
           v-if="detailByIdentifier"
